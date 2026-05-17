@@ -5,6 +5,7 @@ import SearchBar from "./components/SearchBar";
 import LayerControl from "./components/LayerControl";
 import MapTypeSelector from "./components/MapTypeSelector";
 import LocationPanel from "./components/LocationPanel";
+import WeatherWidget from "./components/WeatherWidget";
 
 interface GeoFeature {
   type: "Feature";
@@ -23,6 +24,8 @@ export default function App() {
   const [activeLayers, setActiveLayers] = useState<Record<string, boolean>>({});
   const [mapTheme, setMapTheme] = useState<MapTheme>("light");
   const [detectedLayers, setDetectedLayers] = useState<string[]>([]);
+  const [showWeather, setShowWeather] = useState(false);
+  const [isWeatherClosing, setIsWeatherClosing] = useState(false);
 
   const handleFeatureClick = useCallback((feature: GeoFeature) => {
     setIsPanelClosing(false);
@@ -59,6 +62,19 @@ export default function App() {
   const handleGPS = () => {
     const fn = (window as unknown as Record<string, unknown>).__mapFlyToGPS;
     if (typeof fn === "function") fn();
+  };
+
+  const handleOpenWeather = () => {
+    setIsWeatherClosing(false);
+    setShowWeather(true);
+  };
+
+  const handleCloseWeather = () => {
+    setIsWeatherClosing(true);
+    setTimeout(() => {
+      setShowWeather(false);
+      setIsWeatherClosing(false);
+    }, 300);
   };
 
   return (
@@ -156,13 +172,41 @@ export default function App() {
         </svg>
       </button>
 
-      {/* Info badge */}
+      {/* Bottom-left: Weather button + Info badge stacked */}
       <div
-        className="absolute z-[800] pointer-events-none"
+        className="absolute z-[800] flex flex-col items-start gap-2"
         style={{ bottom: "16px", left: "16px" }}
       >
+        {/* Weather toggle button */}
+        <button
+          onClick={showWeather ? handleCloseWeather : handleOpenWeather}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs transition-all hover:scale-105 active:scale-95"
+          style={{
+            background: showWeather
+              ? "rgba(34,211,238,0.15)"
+              : "rgba(8,15,35,0.88)",
+            backdropFilter: "blur(12px)",
+            border: showWeather
+              ? "1px solid rgba(34,211,238,0.45)"
+              : "1px solid rgba(34,211,238,0.18)",
+            color: showWeather ? "#22d3ee" : "rgba(186,230,253,0.8)",
+            boxShadow: showWeather
+              ? "0 0 12px rgba(34,211,238,0.15)"
+              : "0 2px 8px rgba(0,0,0,0.25)",
+          }}
+        >
+          {/* Cloud icon */}
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+            stroke={showWeather ? "#22d3ee" : "rgba(186,230,253,0.8)"}
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>
+          </svg>
+          <span>Cuaca &amp; Waktu</span>
+        </button>
+
+        {/* Info badge */}
         <div
-          className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs"
+          className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs pointer-events-none"
           style={{
             background: "rgba(8,15,35,0.85)",
             backdropFilter: "blur(12px)",
@@ -174,6 +218,14 @@ export default function App() {
           <span>16.901 Lokasi • Maluku Tengah, Indonesia</span>
         </div>
       </div>
+
+      {/* Weather Widget — slide up from bottom-left */}
+      {(showWeather || isWeatherClosing) && (
+        <WeatherWidget
+          onClose={handleCloseWeather}
+          isClosing={isWeatherClosing}
+        />
+      )}
 
       {/* Location Panel — slide-in from right */}
       {(selectedFeature || isPanelClosing) && (
