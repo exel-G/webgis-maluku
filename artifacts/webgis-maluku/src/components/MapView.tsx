@@ -57,6 +57,7 @@ function createMarkerIcon(category: string): L.DivIcon {
         justify-content:center;
         box-shadow:0 3px 12px rgba(0,0,0,0.3);
         border:2px solid rgba(255,255,255,0.9);
+        transition:transform 0.15s;
       ">
         <div style="transform:rotate(45deg);font-size:14px;line-height:1;">${info.emoji}</div>
       </div>
@@ -64,6 +65,22 @@ function createMarkerIcon(category: string): L.DivIcon {
     iconSize: [32, 32],
     iconAnchor: [16, 32],
     popupAnchor: [0, -34],
+  });
+}
+
+function createRippleIcon(): L.DivIcon {
+  return L.divIcon({
+    className: "",
+    html: `
+      <div class="ripple-marker" style="width:40px;height:40px;">
+        <div class="ripple-ring"></div>
+        <div class="ripple-ring"></div>
+        <div class="ripple-ring"></div>
+        <div class="ripple-dot"></div>
+      </div>
+    `,
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
   });
 }
 
@@ -97,8 +114,39 @@ export default function MapView({
   const tileLayerRef = useRef<L.TileLayer | null>(null);
   const layerGroupsRef = useRef<Record<string, L.LayerGroup>>({});
   const gpsMarkerRef = useRef<L.Marker | null>(null);
+  const rippleMarkerRef = useRef<L.Marker | null>(null);
   const allFeaturesRef = useRef<GeoFeature[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+
+  // Place / move the ripple signal marker
+  const showRipple = useCallback((lat: number, lng: number) => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (rippleMarkerRef.current) {
+      rippleMarkerRef.current.setLatLng([lat, lng]);
+    } else {
+      const marker = L.marker([lat, lng], {
+        icon: createRippleIcon(),
+        zIndexOffset: 900,
+        interactive: false,
+      });
+      marker.addTo(map);
+      rippleMarkerRef.current = marker;
+    }
+  }, []);
+
+  // Smooth fly + ripple for any feature
+  const flyToFeature = useCallback((feature: GeoFeature) => {
+    const map = mapRef.current;
+    if (!map) return;
+    const coords = feature.geometry.coordinates as number[];
+    const lat = coords[1];
+    const lng = coords[0];
+    if (isNaN(lat) || isNaN(lng)) return;
+
+    map.flyTo([lat, lng], 16, { duration: 1.4, easeLinearity: 0.25 });
+    showRipple(lat, lng);
+  }, [showRipple]);
 
   // Initialize map
   useEffect(() => {
@@ -129,9 +177,7 @@ export default function MapView({
       .then((r) => r.json())
       .then((data: { features: GeoFeature[] }) => {
         const named = data.features.filter(
-          (f) =>
-            f.properties.name &&
-            f.geometry.type === "Point"
+          (f) => f.properties.name && f.geometry.type === "Point"
         );
         allFeaturesRef.current = named;
 
@@ -159,6 +205,12 @@ export default function MapView({
           const marker = L.marker([lat, lng], { icon });
 
           marker.on("click", () => {
+            // Fly smooth to the clicked marker then show ripple + panel
+            map.flyTo([lat, lng], Math.max(map.getZoom(), 15), {
+              duration: 1.2,
+              easeLinearity: 0.2,
+            });
+            showRipple(lat, lng);
             onFeatureClick(feature);
           });
 
@@ -172,6 +224,7 @@ export default function MapView({
     return () => {
       map.remove();
       mapRef.current = null;
+      rippleMarkerRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -180,10 +233,7 @@ export default function MapView({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-
-    if (tileLayerRef.current) {
-      map.removeLayer(tileLayerRef.current);
-    }
+    if (tileLayerRef.current) map.removeLayer(tileLayerRef.current);
     const tileConfig = TILE_LAYERS[mapTheme];
     const tileLayer = L.tileLayer(tileConfig.url, {
       attribution: tileConfig.attribution,
@@ -207,7 +257,7 @@ export default function MapView({
     });
   }, [activeLayers]);
 
-  // Search: fly to result
+  // Search: fly smooth + ripple to result
   useEffect(() => {
     if (!searchQuery || !mapRef.current || allFeaturesRef.current.length === 0) return;
 
@@ -217,12 +267,11 @@ export default function MapView({
     );
 
     if (match) {
-      const coords = match.geometry.coordinates as number[];
-      mapRef.current.flyTo([coords[1], coords[0]], 16, { duration: 1.2 });
+      flyToFeature(match);
     }
-  }, [searchQuery]);
+  }, [searchQuery, flyToFeature]);
 
-  // Expose GPS function globally
+  // GPS
   const flyToGPS = useCallback(() => {
     if (!mapRef.current) return;
     const map = mapRef.current;
@@ -235,7 +284,10 @@ export default function MapView({
         if (gpsMarkerRef.current) {
           gpsMarkerRef.current.setLatLng([lat, lng]);
         } else {
-          const gpsMarker = L.marker([lat, lng], { icon: createGPSIcon(), zIndexOffset: 1000 });
+          const gpsMarker = L.marker([lat, lng], {
+            icon: createGPSIcon(),
+            zIndexOffset: 1000,
+          });
           gpsMarker.addTo(map);
           gpsMarkerRef.current = gpsMarker;
         }
@@ -255,8 +307,10 @@ export default function MapView({
     <div className="relative w-full h-full">
       <div ref={mapContainerRef} className="w-full h-full" />
       {!isLoaded && (
-        <div className="absolute inset-0 flex items-center justify-center z-[500]"
-          style={{ background: "rgba(8,20,50,0.7)", backdropFilter: "blur(4px)" }}>
+        <div
+          className="absolute inset-0 flex items-center justify-center z-[500]"
+          style={{ background: "rgba(8,20,50,0.7)", backdropFilter: "blur(4px)" }}
+        >
           <div className="flex flex-col items-center gap-4">
             <div className="w-12 h-12 rounded-full border-2 border-transparent border-t-cyan-400 animate-spin" />
             <p className="text-cyan-200 text-sm font-medium">Memuat 16.901 lokasi...</p>

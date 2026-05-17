@@ -296,6 +296,36 @@
   animation: pulse-ring 1.5s ease-out 0.5s infinite;
 }
 
+/* ── Ripple / signal animation ── */
+@keyframes ripple-ring {
+  0% { transform: scale(0.4); opacity: 0.9; }
+  100% { transform: scale(3.2); opacity: 0; }
+}
+.ripple-marker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ripple-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid #22d3ee;
+  animation: ripple-ring 1.8s ease-out infinite;
+}
+.ripple-ring:nth-child(2) { animation-delay: 0.6s; }
+.ripple-ring:nth-child(3) { animation-delay: 1.2s; }
+.ripple-dot {
+  width: 10px;
+  height: 10px;
+  background: #22d3ee;
+  border-radius: 50%;
+  border: 2px solid white;
+  box-shadow: 0 0 10px rgba(34,211,238,0.8);
+  z-index: 1;
+}
+
 .shimmer-text {
   background: linear-gradient(90deg, #22d3ee, #06b6d4, #0891b2, #22d3ee);
   background-size: 200% auto;
